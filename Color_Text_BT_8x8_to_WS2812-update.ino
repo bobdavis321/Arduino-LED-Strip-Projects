@@ -26,7 +26,7 @@ int redb=0; int greenb=0; int blueb=0;
 // Format: RGB (foreground) then RGB (Background) then text
 String text1="GN Testing12345678901234567890  ";
 String text2="AN This is a test of this sign  ";
-String textT="  ";
+String textT="";  // for combining text 1 and 2
 int ind1; // Delimiter locations
 int ind2;
 
@@ -101,30 +101,6 @@ void sendPixelCol(byte Col) {
     else if (blue & 0x01)sendBits(Col); else sendBits(0x00); 
  }
 
-void writeString(char add,String data)
-{
-  int _size = data.length();
-  int i;
-  for(i=0;i<_size;i++) {  EEPROM.write(add+i,data[i]);  }
-  EEPROM.write(add+_size,'\0');   //Add termination null character for String Data
-//  EEPROM.commit();
-}
- 
-String read_String(char add){
-  int i;
-  char data[100]; //Max 100 Bytes
-  int len=0;
-  unsigned char k;
-  k=EEPROM.read(add);
-  while(k != '\0' && len<500) {    
-    k=EEPROM.read(add+len);
-    data[len]=k;
-    len++;
-  }
-  data[len]='\0';
-  return String(data);
-}
-   
 // This 8x8 Basic font from http://asecular.com/maxmatrix/
 byte font[][8] = {
   0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00, // space
@@ -212,6 +188,7 @@ void sendline(String line) {
 
 void setup() {
   Serial.begin(9600);    // opens serial port, data rate 9600 bps
+//  EEPROM.begin(512);
   PIXEL_DDR = 0xF0;      // Set pins to output Cannot use D0 and D1! 
   PIXEL_DDRB = 0x0F;     // Set pins to output 
 }
@@ -219,26 +196,34 @@ void loop() {
   if (Serial.available() > 0) {
     text2=text1;
     text1=Serial.readString(); 
-    for(int i = text1.length(); i < 40; i++){ text1 += ' '; }
-    text1.toUpperCase();
-    writeString(10, text1+"~"+text2+"~");  // Strings to EEPROM
+    Serial.println(text1);
+    // Save new data to EEPROM
+    String mystr=text1+"~"+text2+"~";
+    for(int i=0 ; i < 90 ; i++)  {
+      EEPROM.write( i,mystr[i] );
+    }
   }
+  
+  // Read Data, then make into strings
+  textT="";
+  for(int i=0 ; i < 90 ; i++){  // The max length is 90
+    char f=EEPROM.read(i);   // read character
+    textT += (f);            // add character to string
+  }
+  
+  Serial.print("Read Data:");
+  Serial.println(textT);
+  ind1 = textT.indexOf('~');          //finds location of first ~
+  text1 = textT.substring(0, ind1);   //captures first String
+  ind2 = textT.indexOf('~', ind1+1 );  //finds location of second ~
+  text2 = textT.substring(ind1+1, ind2); //captures second String
+  
   // Pad length to 40 characters, upper case
   for(int i = text1.length(); i < 40; i++){ text1 += ' '; }
   for(int i = text2.length(); i < 40; i++){ text2 += ' '; }
   text1.toUpperCase();
   text2.toUpperCase();
   
-  //  String Recived Data;
-  textT = read_String(10);  // Strings from EEPROM
-  Serial.print("Read Data:");
-  Serial.println(textT);
-
-  ind1 = textT.indexOf('~');          //finds location of first ~
-  text1 = textT.substring(0, ind1);   //captures first String
-  ind2 = textT.indexOf('~', ind1+1 );  //finds location of second ~
-  text2 = textT.substring(ind1+1, ind2); //captures second String
-
   // Read colors from string, 
   if ((text1[0])=='R') red=128, green=000, blue=000;
   if ((text1[0])=='G') red=000, green=128, blue=000;
